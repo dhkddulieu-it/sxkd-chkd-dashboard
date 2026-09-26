@@ -1,0 +1,1 @@
+window.APP_CONFIG={API_URL:"",DEMO_DATA_URL:"demo-data.json"};

@@ -1,0 +1,4 @@
+const SXKD='08_BRIDGE',CHKD='07_MASTER_CHKD';
+function doGet(){const ss=SpreadsheetApp.getActive();return json_({updatedAt:new Date().toISOString(),bridge:sheet_(ss.getSheetByName(SXKD)),opportunities:sheet_(ss.getSheetByName(CHKD))})}
+function sheet_(sh){if(!sh)return[];const v=sh.getDataRange().getValues(),h=v[0];return v.slice(1).filter(r=>r[0]!==''&&r[0]!=null).map(r=>Object.fromEntries(h.map((k,i)=>[String(k),r[i] instanceof Date?Utilities.formatDate(r[i],Session.getScriptTimeZone(),'yyyy-MM-dd'):r[i]])))}
+function json_(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON)}
