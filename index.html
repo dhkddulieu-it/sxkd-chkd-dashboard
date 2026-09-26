@@ -315,15 +315,80 @@
 <!-- ==========================================
      MANAGEMENT BRIEF
 =========================================== -->
+<h2 class="section-title">
+  Management Intelligence
+</h2>
+
+<section class="cards management-cards">
+
+  <article>
+    <span>P1 - Khẩn cấp</span>
+    <b id="priorityP1">0</b>
+    <small>Cần xử lý ngay</small>
+  </article>
+
+  <article>
+    <span>P2 - Cao</span>
+    <b id="priorityP2">0</b>
+    <small>Cần review quản lý</small>
+  </article>
+
+  <article>
+    <span>P3 - Theo dõi</span>
+    <b id="priorityP3">0</b>
+    <small>Theo dõi định kỳ</small>
+  </article>
+
+  <article>
+    <span>P4 - Bình thường</span>
+    <b id="priorityP4">0</b>
+    <small>Trong ngưỡng kiểm soát</small>
+  </article>
+
+</section>
+
+<section class="cards">
+
+  <article>
+    <span>Pipeline Deficit</span>
+    <b id="managementPipelineDeficit">—</b>
+    <small>Gap chưa được Weighted Pipeline bao phủ</small>
+  </article>
+
+  <article>
+    <span>CHKD đứng yên</span>
+    <b id="managementStale">—</b>
+    <small id="managementStaleRate">—</small>
+  </article>
+
+  <article>
+    <span>Risk Score cao nhất</span>
+    <b id="highestRiskScore">—</b>
+    <small>Thang điểm 0–100</small>
+  </article>
+
+  <article>
+    <span>Lát cắt phân tích</span>
+    <b id="totalSlices">—</b>
+    <small>Trong phạm vi bộ lọc</small>
+  </article>
+
+</section>
 
 <section class="panel insight">
+  <div class="panel-heading">
 
-  <h2>
-    Management Brief
-  </h2>
+    <div>
+      <h2>Management Brief</h2>
 
-  <ul id="managementBrief">
-  </ul>
+      <p class="subtext">
+        Tự động tổng hợp các vấn đề cần ưu tiên xử lý
+      </p>
+    </div>
+
+  </div>
+
+  <ul id="managementBrief"></ul>
 
 </section>
 
@@ -399,9 +464,21 @@
 
 <section class="panel">
 
-  <h2>
-    Top điểm cần Ban điều hành can thiệp
-  </h2>
+  <div class="panel-heading">
+
+    <div>
+
+      <h2>
+        Top 10 điểm cần can thiệp
+      </h2>
+
+      <p class="subtext">
+        Xếp theo Risk Score từ cao xuống thấp
+      </p>
+
+    </div>
+
+  </div>
 
   <div class="tablewrap">
 
@@ -411,6 +488,10 @@
 
         <tr>
 
+          <th>Ưu tiên</th>
+
+          <th>Risk Score</th>
+
           <th>Tháng</th>
 
           <th>SPDV</th>
@@ -419,24 +500,25 @@
 
           <th>Đơn vị</th>
 
-          <th>Forecast Gap</th>
+          <th>Forecast/KH</th>
+
+          <th>Gap</th>
 
           <th>Weighted Pipeline</th>
 
-          <th>Coverage</th>
+          <th>Pipeline Deficit</th>
 
-          <th>CHKD</th>
+          <th>CHKD đứng yên</th>
 
-          <th>Đứng yên</th>
+          <th>Nguyên nhân</th>
 
-          <th>Cảnh báo</th>
+          <th>Hành động</th>
 
         </tr>
 
       </thead>
 
-
-      <tbody id="riskRows">
+      <tbody id="managementRows">
       </tbody>
 
     </table>
