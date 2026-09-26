@@ -15,6 +15,9 @@ let reportConfig = {};
 
 let charts = {};
 
+let managementIntelligence = [];
+
+let managementSummary = {};
 
 /* ==============================================
    FORMAT
@@ -296,11 +299,17 @@ async function refreshDashboard() {
       json.data?.executive ||
       {};
 
+    managementIntelligence =
+      json.data?.managementIntelligence ||
+      [];
+
+    managementSummary =
+      json.data?.managementSummary ||
+      {};
 
     reportConfig =
       json.data?.config ||
       reportConfig;
-
 
     render();
 
@@ -497,6 +506,8 @@ function render() {
 
   renderExecutive();
 
+  renderManagementIntelligence();
+
   renderManagementBrief();
 
   renderTrend();
@@ -507,7 +518,7 @@ function render() {
 
   renderOwners();
 
-  renderRiskTable();
+  renderManagementTable();
 
   renderOpportunityTable();
 }
@@ -755,7 +766,116 @@ function setValueClass(
       : 'red';
 }
 
+function renderManagementIntelligence() {
 
+  const m =
+    managementSummary || {};
+
+  const priority =
+    m.priority || {};
+
+
+  $('priorityP1').textContent =
+    N(priority.p1);
+
+  $('priorityP2').textContent =
+    N(priority.p2);
+
+  $('priorityP3').textContent =
+    N(priority.p3);
+
+  $('priorityP4').textContent =
+    N(priority.p4);
+
+
+  $('managementPipelineDeficit')
+    .textContent =
+      money(
+        m.pipelineDeficit
+      );
+
+
+  $('managementStale')
+    .textContent =
+      N(
+        m.staleOpportunities
+      ) +
+      ' / ' +
+      N(
+        m.opportunities
+      );
+
+
+  $('managementStaleRate')
+    .textContent =
+      percent(
+        m.staleRate
+      ) +
+      ' CHKD';
+
+
+  $('highestRiskScore')
+    .textContent =
+      N(
+        m.highestRiskScore
+      ).toFixed(0);
+
+
+  $('totalSlices')
+    .textContent =
+      N(
+        m.totalSlices
+      );
+
+
+  setPriorityClass(
+    'priorityP1',
+    N(priority.p1) > 0
+      ? 'p1'
+      : 'ok'
+  );
+
+
+  setPriorityClass(
+    'priorityP2',
+    N(priority.p2) > 0
+      ? 'p2'
+      : 'ok'
+  );
+
+
+  setPriorityClass(
+    'highestRiskScore',
+
+    N(m.highestRiskScore) >= 70
+      ? 'p1'
+
+      : N(m.highestRiskScore) >= 50
+        ? 'p2'
+
+        : N(m.highestRiskScore) >= 30
+          ? 'p3'
+
+          : 'ok'
+  );
+}
+
+
+function setPriorityClass(
+  id,
+  className
+) {
+
+  const element =
+    $(id);
+
+  if (!element) {
+    return;
+  }
+
+  element.className =
+    className;
+}
 /* ==============================================
    MANAGEMENT BRIEF
 ============================================== */
@@ -763,11 +883,20 @@ function setValueClass(
 function renderManagementBrief() {
 
   const e =
-    executive;
+    executive || {};
 
+  const m =
+    managementSummary || {};
+
+  const priority =
+    m.priority || {};
 
   const messages = [];
 
+
+  /* ----------------------------------
+     1. Kết quả YTD
+  ---------------------------------- */
 
   messages.push(
 
@@ -779,128 +908,187 @@ function renderManagementBrief() {
   );
 
 
+  /* ----------------------------------
+     2. Forecast
+  ---------------------------------- */
+
   if (
-    e.yoyYTD !== null &&
-    e.yoyYTD !== undefined
+    N(e.shortfall) === 0
   ) {
 
     messages.push(
 
-      `So với cùng kỳ, doanh thu ${
-        N(e.yoyYTD) >= 0
-          ? 'tăng'
-          : 'giảm'
-      } <b>${
-        percent(
-          Math.abs(
-            N(e.yoyYTD)
-          )
-        )
-      }</b>.`
-    );
-  }
-
-
-  if (
-    N(
-      e.shortfall
-    ) === 0
-  ) {
-
-    messages.push(
-
-      `Forecast hiện <b>đạt hoặc vượt kế hoạch</b>; không có Gap cần Pipeline bù.`
+      `Forecast hiện <b>đạt hoặc vượt kế hoạch</b>; chưa phát sinh Gap cần Pipeline bù.`
     );
 
   } else {
 
-    messages.push(
-
-      `Forecast còn thiếu <b>${
-        money(
-          e.shortfall
-        )
-      }</b> so với kế hoạch.`
-    );
-
-
     const gapRate =
-  N(e.plan) > 0
-    ? N(e.shortfall) / N(e.plan)
-    : 0;
+      N(e.plan) > 0
 
-if (gapRate < 0.01) {
+        ? N(e.shortfall) /
+          N(e.plan)
 
-  messages.push(
-    `Forecast đã <b>gần đạt kế hoạch</b>, chỉ còn thiếu <b>${
-      money(e.shortfall)
-    }</b> (${percent(gapRate)} KH).`
-  );
+        : 0;
 
-} else {
-
-  messages.push(
-    `Weighted Pipeline bao phủ <b>${
-      N(e.coverage).toFixed(1)
-    }x</b> phần thiếu.`
-  );
-}
 
     if (
-      N(
-        e.pipelineBalance
-      ) < 0
+      gapRate < 0.01
     ) {
 
       messages.push(
 
-        `Sau khi đối chiếu Gap, Weighted Pipeline vẫn thiếu <b>${
+        `Forecast đã <b>gần đạt kế hoạch</b>, còn thiếu ${
           money(
-            Math.abs(
-              N(
-                e.pipelineBalance
-              )
-            )
+            e.shortfall
           )
-        }</b>.`
+        } (${percent(gapRate)} KH).`
       );
 
     } else {
 
       messages.push(
 
-        `Weighted Pipeline đang cao hơn phần thiếu <b>${
+        `Forecast còn thiếu <b>${
           money(
-            e.pipelineBalance
+            e.shortfall
           )
-        }</b>.`
+        }</b>, tương đương ${
+          percent(gapRate)
+        } kế hoạch.`
       );
     }
   }
 
 
-  messages.push(
+  /* ----------------------------------
+     3. Management priority
+  ---------------------------------- */
 
-    `Có <b>${
-      N(
-        e.staleOpportunityCount
-      )
-    }</b> CHKD đứng yên ≥2 tuần trên tổng <b>${
-      N(
-        e.opportunityCount
-      )
-    }</b> CHKD trong phạm vi pipeline.`
-  );
+  if (
+    N(priority.p1) > 0
+  ) {
+
+    messages.push(
+
+      `Có <b>${
+        N(priority.p1)
+      } điểm P1 - Khẩn cấp</b> cần ưu tiên xử lý ngay.`
+    );
+  }
 
 
-  messages.push(
+  if (
+    N(priority.p2) > 0
+  ) {
 
-    `Có <b>${
-      N(
-        e.redAlertCount
-      )
-    }</b> lát cắt đang ở mức cảnh báo Đỏ.`
-  );
+    messages.push(
+
+      `Có <b>${
+        N(priority.p2)
+      } điểm P2 - Cao</b> cần review ở cấp quản lý.`
+    );
+  }
+
+
+  if (
+    N(priority.p1) === 0 &&
+    N(priority.p2) === 0
+  ) {
+
+    messages.push(
+
+      `Hiện <b>không có P1/P2</b> trong phạm vi đang xem.`
+    );
+  }
+
+
+  /* ----------------------------------
+     4. Pipeline deficit
+  ---------------------------------- */
+
+  if (
+    N(
+      m.pipelineDeficit
+    ) > 0
+  ) {
+
+    messages.push(
+
+      `Tổng Pipeline Deficit của các lát cắt rủi ro là <b>${
+        money(
+          m.pipelineDeficit
+        )
+      }</b>.`
+    );
+
+  } else {
+
+    messages.push(
+
+      `Không ghi nhận Pipeline Deficit trong phạm vi đang xem.`
+    );
+  }
+
+
+  /* ----------------------------------
+     5. Stale opportunities
+  ---------------------------------- */
+
+  if (
+    N(
+      m.staleOpportunities
+    ) > 0
+  ) {
+
+    messages.push(
+
+      `Có <b>${
+        N(
+          m.staleOpportunities
+        )
+      } CHKD đứng yên ≥2 tuần</b>, chiếm ${
+        percent(
+          m.staleRate
+        )
+      } số CHKD.`
+    );
+  }
+
+
+  /* ----------------------------------
+     6. Top priority action
+  ---------------------------------- */
+
+  const top =
+    Array.isArray(
+      m.top10
+    )
+      ? m.top10[0]
+      : null;
+
+
+  if (top) {
+
+    messages.push(
+
+      `Ưu tiên cao nhất hiện tại: <b>${
+        top['SPDV'] || ''
+      } • ${
+        top['Địa bàn'] || ''
+      } • ${
+        top['Đơn vị'] || ''
+      }</b> — Risk Score <b>${
+        N(
+          top['Risk Score']
+        )
+      }</b>. ${
+        top[
+          'Hành động đề xuất'
+        ] || ''
+      }`
+    );
+  }
 
 
   $('managementBrief')
@@ -913,7 +1101,6 @@ if (gapRate < 0.01) {
       )
       .join('');
 }
-
 
 /* ==============================================
    CHART HELPER
@@ -1304,6 +1491,286 @@ function renderOwners() {
   );
 }
 
+function renderManagementTable() {
+
+  const rows =
+    Array.isArray(
+      managementSummary?.top10
+    )
+
+      ? managementSummary.top10
+
+      : [];
+
+
+  const tbody =
+    $('managementRows');
+
+
+  if (!tbody) {
+    return;
+  }
+
+
+  if (!rows.length) {
+
+    tbody.innerHTML = `
+
+      <tr>
+
+        <td
+          colspan="13"
+          style="text-align:center"
+        >
+          Không có điểm rủi ro cần ưu tiên trong phạm vi này.
+        </td>
+
+      </tr>
+    `;
+
+    return;
+  }
+
+
+  tbody.innerHTML =
+
+    rows.map(
+      row => {
+
+        const score =
+          N(
+            row[
+              'Risk Score'
+            ]
+          );
+
+
+        const priority =
+          row[
+            'Mức ưu tiên'
+          ] || '';
+
+
+        const forecastRate =
+          N(
+            row[
+              'Forecast/KH'
+            ]
+          );
+
+
+        const gap =
+          N(
+            row[
+              'Gap Forecast/KH'
+            ]
+          );
+
+
+        return `
+
+          <tr>
+
+            <td>
+              <span class="${
+                priorityClass(
+                  priority
+                )
+              } priority-badge">
+
+                ${priority}
+
+              </span>
+            </td>
+
+
+            <td>
+
+              <b class="${
+                riskScoreClass(
+                  score
+                )
+              }">
+
+                ${score.toFixed(0)}
+
+              </b>
+
+            </td>
+
+
+            <td>
+              ${row['Tháng']}
+            </td>
+
+
+            <td>
+              ${row['SPDV']}
+            </td>
+
+
+            <td>
+              ${row['Địa bàn']}
+            </td>
+
+
+            <td>
+              ${row['Đơn vị']}
+            </td>
+
+
+            <td>
+              ${percent(
+                forecastRate
+              )}
+            </td>
+
+
+            <td class="${
+              gap >= 0
+                ? 'green'
+                : 'red'
+            }">
+
+              ${signedMoney(gap)}
+
+            </td>
+
+
+            <td>
+
+              ${money(
+                row[
+                  'Weighted Pipeline'
+                ]
+              )}
+
+            </td>
+
+
+            <td class="${
+              N(
+                row[
+                  'Pipeline Deficit'
+                ]
+              ) > 0
+
+                ? 'red'
+
+                : 'green'
+            }">
+
+              ${money(
+                row[
+                  'Pipeline Deficit'
+                ]
+              )}
+
+            </td>
+
+
+            <td>
+
+              ${
+                N(
+                  row[
+                    'CHKD đứng yên ≥2 tuần'
+                  ]
+                )
+              }
+
+            </td>
+
+
+            <td>
+
+              ${
+                row[
+                  'Nguyên nhân chính'
+                ] || ''
+              }
+
+            </td>
+
+
+            <td>
+
+              ${
+                row[
+                  'Hành động đề xuất'
+                ] || ''
+              }
+
+            </td>
+
+          </tr>
+        `;
+      }
+    )
+    .join('');
+}
+
+
+function priorityClass(
+  priority
+) {
+
+  const text =
+    String(
+      priority || ''
+    );
+
+
+  if (
+    text.startsWith('P1')
+  ) {
+    return 'p1';
+  }
+
+
+  if (
+    text.startsWith('P2')
+  ) {
+    return 'p2';
+  }
+
+
+  if (
+    text.startsWith('P3')
+  ) {
+    return 'p3';
+  }
+
+
+  return 'p4';
+}
+
+
+function riskScoreClass(
+  score
+) {
+
+  const value =
+    N(score);
+
+
+  if (value >= 70) {
+    return 'p1';
+  }
+
+
+  if (value >= 50) {
+    return 'p2';
+  }
+
+
+  if (value >= 30) {
+    return 'p3';
+  }
+
+
+  return 'ok';
+}
 
 /* ==============================================
    RISK TABLE
