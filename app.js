@@ -1,69 +1,252 @@
-const $ = id => document.getElementById(id);
+const $ =
+  id =>
+    document.getElementById(id);
+
+
+let allBridge = [];
 
 let bridge = [];
+
 let opportunities = [];
+
 let executive = {};
+
+let reportConfig = {};
+
 let charts = {};
 
-const N = value => Number(value) || 0;
 
-const money = value =>
-  new Intl.NumberFormat('vi-VN', {
-    notation: 'compact',
-    maximumFractionDigits: 1
-  }).format(N(value)) + ' ₫';
+/* ==============================================
+   FORMAT
+============================================== */
+
+const N =
+  value =>
+    Number(value) || 0;
 
 
-/* =====================================================
-   LOAD DATA FROM APPS SCRIPT API
-===================================================== */
+const money =
+  value => {
+
+    const n =
+      N(value);
+
+    const abs =
+      Math.abs(n);
+
+
+    if (abs >= 1e9) {
+
+      return (
+        new Intl.NumberFormat(
+          'vi-VN',
+          {
+            maximumFractionDigits: 1
+          }
+        ).format(
+          n / 1e9
+        ) +
+        ' Tỷ đ'
+      );
+    }
+
+
+    if (abs >= 1e6) {
+
+      return (
+        new Intl.NumberFormat(
+          'vi-VN',
+          {
+            maximumFractionDigits: 1
+          }
+        ).format(
+          n / 1e6
+        ) +
+        ' Tr đ'
+      );
+    }
+
+
+    return (
+      new Intl.NumberFormat(
+        'vi-VN'
+      ).format(n) +
+      ' đ'
+    );
+  };
+
+
+const percent =
+  value => {
+
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return '—';
+    }
+
+    return (
+      (
+        N(value) *
+        100
+      ).toFixed(1) +
+      '%'
+    );
+  };
+
+
+/* ==============================================
+   API
+============================================== */
+
+async function api(
+  dataset,
+  useFilters = true
+) {
+
+  const params =
+    new URLSearchParams();
+
+
+  params.set(
+    'dataset',
+    dataset
+  );
+
+
+  if (useFilters) {
+
+    const filters =
+      getFilters();
+
+
+    Object.entries(
+      filters
+    ).forEach(
+      ([key, value]) => {
+
+        if (value) {
+
+          params.set(
+            key,
+            value
+          );
+        }
+      }
+    );
+  }
+
+
+  /*
+   * tránh browser cache JSON cũ
+   */
+
+  params.set(
+    '_',
+    Date.now()
+  );
+
+
+  const separator =
+    APP_CONFIG.API_URL.includes('?')
+      ? '&'
+      : '?';
+
+
+  const url =
+    APP_CONFIG.API_URL +
+    separator +
+    params.toString();
+
+
+  const response =
+    await fetch(url);
+
+
+  if (!response.ok) {
+
+    throw new Error(
+      'HTTP ' +
+      response.status
+    );
+  }
+
+
+  const json =
+    await response.json();
+
+
+  if (!json.success) {
+
+    throw new Error(
+      json.error?.message ||
+      'API trả về lỗi'
+    );
+  }
+
+
+  return json;
+}
+
+
+/* ==============================================
+   INITIAL LOAD
+============================================== */
 
 async function load() {
 
   try {
 
-    setStatus('Đang tải dữ liệu...', false);
-
-    const response = await fetch(
-      APP_CONFIG.API_URL + '?dataset=all&t=' + Date.now()
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        'HTTP ' + response.status
-      );
-    }
-
-    const json = await response.json();
-
-    if (!json.success) {
-      throw new Error(
-        json.error?.message || 'API trả về lỗi'
-      );
-    }
-
-    // API mới có cấu trúc json.data.xxx
-    bridge = json.data?.bridge || [];
-    opportunities =
-      json.data?.opportunities || [];
-
-    executive =
-      json.data?.executive || {};
-
-    fillFilters();
-
-    render();
-
-    const updated =
-      json.meta?.updatedAt
-        ? new Date(json.meta.updatedAt)
-        : new Date();
-
     setStatus(
-      'LIVE • Cập nhật: ' +
-      updated.toLocaleString('vi-VN'),
-      true
+      'Đang tải dữ liệu...',
+      false
     );
+
+
+    /*
+     * Lần đầu tải ALL không filter
+     * để lấy danh mục filter.
+     */
+
+    const initial =
+      await api(
+        'all',
+        false
+      );
+
+
+    allBridge =
+      initial.data?.bridge ||
+      [];
+
+
+    reportConfig =
+      initial.data?.config ||
+      {};
+
+
+    buildFilters();
+
+
+    /*
+     * mặc định năm báo cáo
+     */
+
+    if (
+      reportConfig.reportYear &&
+      $('year')
+    ) {
+
+      $('year').value =
+        String(
+          reportConfig.reportYear
+        );
+    }
+
+
+    await refreshDashboard();
+
 
   } catch (error) {
 
@@ -74,35 +257,124 @@ async function load() {
       error.message,
       false
     );
-
   }
 }
 
 
-/* =====================================================
-   STATUS
-===================================================== */
+/* ==============================================
+   REFRESH WITH FILTER
+============================================== */
 
-function setStatus(text, success) {
+async function refreshDashboard() {
 
-  const source = $('source');
+  try {
 
-  if (!source) return;
+    setStatus(
+      'Đang cập nhật...',
+      false
+    );
 
-  source.textContent = text;
 
-  source.style.fontWeight = '600';
+    const json =
+      await api(
+        'all',
+        true
+      );
 
-  source.style.color =
-    success ? '#067647' : '#b42318';
+
+    bridge =
+      json.data?.bridge ||
+      [];
+
+
+    opportunities =
+      json.data?.opportunities ||
+      [];
+
+
+    executive =
+      json.data?.executive ||
+      {};
+
+
+    reportConfig =
+      json.data?.config ||
+      reportConfig;
+
+
+    render();
+
+
+    const updated =
+      json.meta?.updatedAt
+        ? new Date(
+            json.meta.updatedAt
+          )
+        : new Date();
+
+
+    setStatus(
+      'LIVE • API v' +
+      (
+        json.meta?.version ||
+        ''
+      ) +
+      ' • Cập nhật: ' +
+      updated.toLocaleString(
+        'vi-VN'
+      ),
+      true
+    );
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    setStatus(
+      'Lỗi cập nhật: ' +
+      error.message,
+      false
+    );
+  }
 }
 
 
-/* =====================================================
+/* ==============================================
    FILTERS
-===================================================== */
+============================================== */
 
-function fillFilters() {
+function getFilters() {
+
+  return {
+
+    year:
+      $('year')?.value || '',
+
+    quarter:
+      $('quarter')?.value || '',
+
+    month:
+      $('month')?.value || '',
+
+    spdv:
+      $('spdv')?.value || '',
+
+    area:
+      $('area')?.value || '',
+
+    unit:
+      $('unit')?.value || ''
+  };
+}
+
+
+function buildFilters() {
+
+  createOptions(
+    'year',
+    'Năm'
+  );
 
   createOptions(
     'month',
@@ -127,151 +399,514 @@ function fillFilters() {
 }
 
 
-function createOptions(id, field, isMonth = false) {
+function createOptions(
+  id,
+  field,
+  monthLabel = false
+) {
 
-  const element = $(id);
+  const element =
+    $(id);
 
-  if (!element) return;
 
-  const current =
-    element.value;
+  if (!element) {
+    return;
+  }
+
 
   const first =
-    element.options[0]?.outerHTML ||
+    element.options[0]
+      ?.outerHTML ||
     '<option value="">Tất cả</option>';
 
-  element.innerHTML = first;
 
-  const values = [
-    ...new Set(
-      bridge
-        .map(row => row[field])
-        .filter(
-          value =>
-            value !== '' &&
-            value !== null &&
-            value !== undefined
-        )
-    )
-  ];
+  element.innerHTML =
+    first;
 
-  values.sort((a, b) => {
 
-    if (
-      typeof a === 'number' &&
-      typeof b === 'number'
-    ) {
-      return a - b;
+  const values =
+    [
+      ...new Set(
+
+        allBridge
+          .map(
+            row =>
+              row[field]
+          )
+          .filter(
+            value =>
+              value !== '' &&
+              value !== null &&
+              value !== undefined
+          )
+      )
+    ];
+
+
+  values.sort(
+    (a, b) => {
+
+      if (
+        !isNaN(a) &&
+        !isNaN(b)
+      ) {
+
+        return (
+          Number(a) -
+          Number(b)
+        );
+      }
+
+
+      return String(a)
+        .localeCompare(
+          String(b),
+          'vi'
+        );
     }
+  );
 
-    return String(a)
-      .localeCompare(
-        String(b),
-        'vi'
+
+  values.forEach(
+    value => {
+
+      element.add(
+
+        new Option(
+
+          monthLabel
+            ? 'Tháng ' +
+              value
+            : value,
+
+          value
+        )
       );
-  });
+    }
+  );
+}
 
-  values.forEach(value => {
 
-    const label =
-      isMonth
-        ? 'Tháng ' + value
-        : value;
+/* ==============================================
+   MAIN RENDER
+============================================== */
 
-    element.add(
-      new Option(label, value)
+function render() {
+
+  renderContext();
+
+  renderExecutive();
+
+  renderManagementBrief();
+
+  renderTrend();
+
+  renderCoverage();
+
+  renderStages();
+
+  renderOwners();
+
+  renderRiskTable();
+
+  renderOpportunityTable();
+}
+
+
+/* ==============================================
+   CONTEXT
+============================================== */
+
+function renderContext() {
+
+  const f =
+    getFilters();
+
+
+  const parts = [];
+
+
+  if (f.year) {
+    parts.push(
+      'Năm ' +
+      f.year
     );
-  });
+  }
+
+
+  if (f.quarter) {
+    parts.push(
+      f.quarter
+    );
+  }
+
+
+  if (f.month) {
+    parts.push(
+      'Tháng ' +
+      f.month
+    );
+  }
+
+
+  if (f.spdv) {
+    parts.push(
+      f.spdv
+    );
+  }
+
+
+  if (f.area) {
+    parts.push(
+      f.area
+    );
+  }
+
+
+  if (f.unit) {
+    parts.push(
+      f.unit
+    );
+  }
+
+
+  $('reportContext')
+    .innerHTML =
+
+    '<b>Kỳ báo cáo:</b> ' +
+
+    (
+      parts.length
+        ? parts.join(' • ')
+        : 'Toàn bộ dữ liệu'
+    ) +
+
+    (
+      reportConfig.asOfMonth
+        ? ' &nbsp; | &nbsp; <b>As of:</b> Tháng ' +
+          reportConfig.asOfMonth
+        : ''
+    );
+}
+
+
+/* ==============================================
+   EXECUTIVE KPI
+============================================== */
+
+function renderExecutive() {
+
+  const e =
+    executive;
+
+
+  $('planYTD').textContent =
+    money(
+      e.planYTD
+    );
+
+
+  $('actualYTD').textContent =
+    money(
+      e.actualYTD
+    );
+
+
+  $('achievementYTD')
+    .textContent =
+      percent(
+        e.achievementYTD
+      );
+
+
+  $('yoyYTD')
+    .textContent =
+      percent(
+        e.yoyYTD
+      );
+
+
+  $('plan').textContent =
+    money(
+      e.plan
+    );
+
+
+  $('forecast').textContent =
+    money(
+      e.forecast
+    );
+
+
+  $('forecastRate')
+    .textContent =
+      percent(
+        e.forecastRate
+      ) +
+      ' KH';
+
+
+  $('forecastGap')
+    .textContent =
+      signedMoney(
+        e.forecastGap
+      );
+
+
+  $('shortfall')
+    .textContent =
+      money(
+        e.shortfall
+      );
+
+
+  $('pipeline')
+    .textContent =
+      money(
+        e.pipeline
+      );
+
+
+  $('weightedPipeline')
+    .textContent =
+      money(
+        e.weightedPipeline
+      );
+
+
+  $('coverage')
+    .textContent =
+
+      e.coverage === null ||
+      e.shortfall === 0
+
+        ? 'Đã đạt KH'
+
+        : N(
+            e.coverage
+          ).toFixed(1) +
+          'x';
+
+
+  $('pipelineBalance')
+    .textContent =
+      signedMoney(
+        e.pipelineBalance
+      );
+
+
+  setValueClass(
+    'achievementYTD',
+    N(
+      e.achievementYTD
+    ) >= 1
+  );
+
+
+  setValueClass(
+    'forecastGap',
+    N(
+      e.forecastGap
+    ) >= 0
+  );
+
+
+  setValueClass(
+    'pipelineBalance',
+    N(
+      e.pipelineBalance
+    ) >= 0
+  );
+}
+
+
+function signedMoney(
+  value
+) {
+
+  const n =
+    N(value);
+
+  return (
+    n > 0
+      ? '+'
+      : ''
+  ) +
+  money(n);
+}
+
+
+function setValueClass(
+  id,
+  positive
+) {
+
+  const element =
+    $(id);
+
+
+  if (!element) {
+    return;
+  }
+
+
+  element.className =
+    positive
+      ? 'green'
+      : 'red';
+}
+
+
+/* ==============================================
+   MANAGEMENT BRIEF
+============================================== */
+
+function renderManagementBrief() {
+
+  const e =
+    executive;
+
+
+  const messages = [];
+
+
+  messages.push(
+
+    `Thực hiện YTD đạt <b>${
+      percent(
+        e.achievementYTD
+      )
+    }</b> kế hoạch YTD.`
+  );
+
 
   if (
-    [...element.options]
-      .some(option =>
-        option.value === current
-      )
+    e.yoyYTD !== null &&
+    e.yoyYTD !== undefined
   ) {
-    element.value = current;
+
+    messages.push(
+
+      `So với cùng kỳ, doanh thu ${
+        N(e.yoyYTD) >= 0
+          ? 'tăng'
+          : 'giảm'
+      } <b>${
+        percent(
+          Math.abs(
+            N(e.yoyYTD)
+          )
+        )
+      }</b>.`
+    );
   }
-}
 
 
-/* =====================================================
-   FILTER ENGINE
-===================================================== */
+  if (
+    N(
+      e.shortfall
+    ) === 0
+  ) {
 
-function rowMatches(row) {
+    messages.push(
 
-  return (
-    (
-      !$('month').value ||
-      String(row['Tháng']) ===
-      $('month').value
-    ) &&
+      `Forecast hiện <b>đạt hoặc vượt kế hoạch</b>; không có Gap cần Pipeline bù.`
+    );
 
-    (
-      !$('spdv').value ||
-      row['SPDV'] ===
-      $('spdv').value
-    ) &&
+  } else {
 
-    (
-      !$('area').value ||
-      row['Địa bàn'] ===
-      $('area').value
-    ) &&
+    messages.push(
 
-    (
-      !$('unit').value ||
-      row['Đơn vị'] ===
-      $('unit').value
-    )
+      `Forecast còn thiếu <b>${
+        money(
+          e.shortfall
+        )
+      }</b> so với kế hoạch.`
+    );
+
+
+    messages.push(
+
+      `Weighted Pipeline bao phủ <b>${
+        N(
+          e.coverage
+        ).toFixed(1)
+      }x</b> phần thiếu.`
+    );
+
+
+    if (
+      N(
+        e.pipelineBalance
+      ) < 0
+    ) {
+
+      messages.push(
+
+        `Sau khi đối chiếu Gap, Weighted Pipeline vẫn thiếu <b>${
+          money(
+            Math.abs(
+              N(
+                e.pipelineBalance
+              )
+            )
+          )
+        }</b>.`
+      );
+
+    } else {
+
+      messages.push(
+
+        `Weighted Pipeline đang cao hơn phần thiếu <b>${
+          money(
+            e.pipelineBalance
+          )
+        }</b>.`
+      );
+    }
+  }
+
+
+  messages.push(
+
+    `Có <b>${
+      N(
+        e.staleOpportunityCount
+      )
+    }</b> CHKD đứng yên ≥2 tuần trên tổng <b>${
+      N(
+        e.opportunityCount
+      )
+    }</b> CHKD trong phạm vi pipeline.`
   );
-}
 
 
-function opportunityMatches(row) {
+  messages.push(
 
-  return (
-    (
-      !$('month').value ||
-      String(
-        row['Tháng dự kiến chốt']
-      ) === $('month').value
-    ) &&
-
-    (
-      !$('spdv').value ||
-      row['SPDV'] ===
-      $('spdv').value
-    ) &&
-
-    (
-      !$('area').value ||
-      row['Địa bàn'] ===
-      $('area').value
-    ) &&
-
-    (
-      !$('unit').value ||
-      row['Đơn vị'] ===
-      $('unit').value
-    )
+    `Có <b>${
+      N(
+        e.redAlertCount
+      )
+    }</b> lát cắt đang ở mức cảnh báo Đỏ.`
   );
+
+
+  $('managementBrief')
+    .innerHTML =
+
+    messages
+      .map(
+        message =>
+          `<li>${message}</li>`
+      )
+      .join('');
 }
 
 
-/* =====================================================
-   HELPERS
-===================================================== */
-
-function sum(rows, field) {
-
-  return rows.reduce(
-    (total, row) =>
-      total + N(row[field]),
-    0
-  );
-}
-
+/* ==============================================
+   CHART HELPER
+============================================== */
 
 function createChart(
   id,
@@ -280,184 +915,111 @@ function createChart(
   datasets
 ) {
 
-  if (!$(id)) return;
+  const canvas =
+    $(id);
 
-  if (charts[id]) {
-    charts[id].destroy();
+
+  if (!canvas) {
+    return;
   }
 
+
+  if (charts[id]) {
+
+    charts[id]
+      .destroy();
+  }
+
+
   charts[id] =
-    new Chart($(id), {
+    new Chart(
+      canvas,
+      {
 
-      type: type,
+        type,
 
-      data: {
-        labels: labels,
-        datasets: datasets
-      },
-
-      options: {
-        responsive: true,
-
-        maintainAspectRatio: false,
-
-        plugins: {
-          legend: {
-            display: true
-          }
+        data: {
+          labels,
+          datasets
         },
 
-        scales:
-          type === 'bar' ||
-          type === 'line'
-            ? {
-                y: {
-                  beginAtZero: true
+        options: {
+
+          responsive: true,
+
+          maintainAspectRatio: false,
+
+          plugins: {
+
+            legend: {
+              display: true
+            }
+          },
+
+          scales:
+            type === 'bar' ||
+            type === 'line'
+
+              ? {
+                  y: {
+                    beginAtZero: true
+                  }
                 }
-              }
-            : {}
+
+              : {}
+        }
       }
-    });
-}
-
-
-/* =====================================================
-   MAIN DASHBOARD
-===================================================== */
-
-function render() {
-
-  const rows =
-    bridge.filter(rowMatches);
-
-  const opps =
-    opportunities.filter(
-      opportunityMatches
     );
-
-  renderKPI(rows);
-
-  renderTrend(rows);
-
-  renderCoverage(rows);
-
-  renderStages(opps);
-
-  renderOwners(opps);
-
-  renderInsights(rows, opps);
-
-  renderRiskTable(rows);
-
-  renderOpportunityTable(opps);
 }
 
 
-/* =====================================================
-   KPI
-===================================================== */
-
-function renderKPI(rows) {
-
-  const plan =
-    sum(rows, 'Kế hoạch');
-
-  const actual =
-    sum(rows, 'Thực hiện');
-
-  const forecast =
-    sum(rows, 'Forecast SXKD');
-
-  const weighted =
-    sum(rows, 'Weighted Pipeline');
-
-  const shortfall =
-    Math.max(
-      0,
-      plan - forecast
-    );
-
-  const coverage =
-    shortfall > 0
-      ? weighted / shortfall
-      : null;
-
-
-  $('plan').textContent =
-    money(plan);
-
-  $('actual').textContent =
-    money(actual);
-
-  $('rate').textContent =
-    plan
-      ? (
-          actual /
-          plan *
-          100
-        ).toFixed(1) +
-        '% KH'
-      : '0% KH';
-
-  $('forecast').textContent =
-    money(forecast);
-
-
-  const gap =
-    forecast - plan;
-
-  $('gap').textContent =
-    (gap > 0 ? '+' : '') +
-    money(gap);
-
-  $('gap').className =
-    gap >= 0
-      ? 'green'
-      : 'red';
-
-
-  $('weighted').textContent =
-    money(weighted);
-
-
-  $('coverage').textContent =
-    coverage === null
-      ? 'Đã đạt KH'
-      : coverage.toFixed(1) +
-        'x';
-}
-
-
-/* =====================================================
+/* ==============================================
    TREND
-===================================================== */
+============================================== */
 
-function renderTrend(rows) {
+function renderTrend() {
 
-  const months = [
-    ...new Set(
-      rows.map(
-        row => row['Tháng']
-      )
-    )
-  ].sort((a, b) => a - b);
-
-
-  const series = field =>
-    months.map(month =>
-      sum(
-        rows.filter(
+  const months =
+    [
+      ...new Set(
+        bridge.map(
           row =>
-            row['Tháng'] ===
-            month
-        ),
-        field
+            N(
+              row['Tháng']
+            )
+        )
       )
-    );
+    ]
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          a - b
+      );
+
+
+  const series =
+    field =>
+
+      months.map(
+        month =>
+
+          sum(
+            bridge.filter(
+              row =>
+                N(
+                  row['Tháng']
+                ) ===
+                month
+            ),
+            field
+          )
+      );
 
 
   createChart(
+
     'trend',
+
     'line',
 
     months.map(
@@ -466,20 +1028,31 @@ function renderTrend(rows) {
     ),
 
     [
+
       {
-        label: 'Kế hoạch',
+        label:
+          'Kế hoạch',
+
         data:
-          series('Kế hoạch')
+          series(
+            'Kế hoạch'
+          )
       },
 
       {
-        label: 'Thực hiện',
+        label:
+          'Thực hiện',
+
         data:
-          series('Thực hiện')
+          series(
+            'Thực hiện'
+          )
       },
 
       {
-        label: 'Forecast',
+        label:
+          'Forecast',
+
         data:
           series(
             'Forecast SXKD'
@@ -490,104 +1063,154 @@ function renderTrend(rows) {
 }
 
 
-/* =====================================================
-   GAP VS PIPELINE BY SPDV
-===================================================== */
+/* ==============================================
+   GAP / PIPELINE BY SPDV
+============================================== */
 
-function renderCoverage(rows) {
+function renderCoverage() {
 
-  const spdvs = [
-    ...new Set(
-      rows.map(
-        row => row.SPDV
+  const spdvs =
+    [
+      ...new Set(
+        bridge.map(
+          row =>
+            row.SPDV
+        )
       )
-    )
-  ];
+    ];
 
 
   const gaps =
-    spdvs.map(spdv => {
-
-      const group =
-        rows.filter(
-          row =>
-            row.SPDV === spdv
-        );
-
-      return Math.max(
-        0,
-        sum(group, 'Kế hoạch') -
-        sum(
-          group,
-          'Forecast SXKD'
-        )
-      );
-    });
+    [];
 
 
   const weighted =
-    spdvs.map(spdv =>
-      sum(
-        rows.filter(
+    [];
+
+
+  spdvs.forEach(
+    spdv => {
+
+      const rows =
+        bridge.filter(
           row =>
-            row.SPDV === spdv
-        ),
-        'Weighted Pipeline'
-      )
-    );
+            row.SPDV ===
+            spdv
+        );
+
+
+      const plan =
+        sum(
+          rows,
+          'Kế hoạch'
+        );
+
+
+      const forecast =
+        sum(
+          rows,
+          'Forecast SXKD'
+        );
+
+
+      gaps.push(
+
+        Math.max(
+          0,
+          plan -
+          forecast
+        )
+      );
+
+
+      weighted.push(
+
+        sum(
+          rows.filter(
+            row =>
+              N(
+                row[
+                  'Remaining Flag'
+                ]
+              ) === 1
+          ),
+          'Weighted Pipeline'
+        )
+      );
+    }
+  );
 
 
   createChart(
+
     'coverageChart',
+
     'bar',
+
     spdvs,
 
     [
+
       {
         label:
           'Phần thiếu KH',
-        data: gaps
+
+        data:
+          gaps
       },
 
       {
         label:
           'Weighted Pipeline',
-        data: weighted
+
+        data:
+          weighted
       }
     ]
   );
 }
 
 
-/* =====================================================
-   OPPORTUNITY STAGE
-===================================================== */
+/* ==============================================
+   STAGE
+============================================== */
 
-function renderStages(opps) {
+function renderStages() {
 
   const stage = {};
 
-  opps.forEach(row => {
 
-    const name =
-      row['Giai đoạn'] ||
-      'Khác';
+  opportunities.forEach(
+    row => {
 
-    stage[name] =
-      (stage[name] || 0) +
-      N(
-        row[
-          'Weighted Pipeline'
-        ]
-      );
-  });
+      const name =
+        row['Giai đoạn'] ||
+        'Khác';
+
+
+      stage[name] =
+        (
+          stage[name] ||
+          0
+        ) +
+        N(
+          row[
+            'Weighted Pipeline'
+          ]
+        );
+    }
+  );
 
 
   createChart(
+
     'stage',
+
     'doughnut',
 
-    Object.keys(stage),
+    Object.keys(
+      stage
+    ),
 
     [
       {
@@ -595,22 +1218,26 @@ function renderStages(opps) {
           'Weighted Pipeline',
 
         data:
-          Object.values(stage)
+          Object.values(
+            stage
+          )
       }
     ]
   );
 }
 
 
-/* =====================================================
-   STALE PIPELINE BY OWNER
-===================================================== */
+/* ==============================================
+   STALE PIPELINE OWNER
+============================================== */
 
-function renderOwners(opps) {
+function renderOwners() {
 
-  const owner = {};
+  const owners = {};
 
-  opps
+
+  opportunities
+
     .filter(
       row =>
         N(
@@ -620,224 +1247,286 @@ function renderOwners(opps) {
         ) >= 2
     )
 
-    .forEach(row => {
+    .forEach(
+      row => {
 
-      const name =
-        row.Owner ||
-        'Chưa phân công';
+        const owner =
+          row.Owner ||
+          'Chưa phân công';
 
-      owner[name] =
-        (owner[name] || 0) +
-        N(
-          row[
-            'Weighted Pipeline'
-          ]
-        );
-    });
+
+        owners[owner] =
+          (
+            owners[owner] ||
+            0
+          ) +
+          N(
+            row[
+              'Weighted Pipeline'
+            ]
+          );
+      }
+    );
 
 
   createChart(
+
     'owner',
+
     'bar',
 
-    Object.keys(owner),
+    Object.keys(
+      owners
+    ),
 
     [
       {
         label:
-          'Pipeline đứng yên',
+          'Weighted Pipeline đứng yên',
 
         data:
-          Object.values(owner)
+          Object.values(
+            owners
+          )
       }
     ]
   );
 }
 
 
-/* =====================================================
-   MANAGEMENT INSIGHTS
-===================================================== */
+/* ==============================================
+   RISK TABLE
+============================================== */
 
-function renderInsights(
-  rows,
-  opps
-) {
+function renderRiskTable() {
 
-  const plan =
-    sum(rows, 'Kế hoạch');
+  const riskOrder = {
 
-  const forecast =
-    sum(
-      rows,
-      'Forecast SXKD'
-    );
+    'Đỏ': 1,
 
-  const weighted =
-    sum(
-      rows,
-      'Weighted Pipeline'
-    );
+    'Vàng': 2,
 
-  const shortfall =
-    Math.max(
-      0,
-      plan - forecast
-    );
+    'Xanh': 3
+  };
 
 
-  const coverage =
-    shortfall
-      ? weighted /
-        shortfall
-      : null;
+  const rows =
+    [...bridge]
 
+      .sort(
+        (a, b) => {
 
-  const red =
-    rows.filter(
-      row =>
-        row[
-          'Cảnh báo điều hành'
-        ] === 'Đỏ'
-    );
-
-
-  const stale =
-    opps.filter(
-      row =>
-        N(
-          row[
-            'Số tuần đứng yên'
-          ]
-        ) >= 2
-    );
-
-
-  const staleValue =
-    sum(
-      stale,
-      'Weighted Pipeline'
-    );
-
-
-  const messages = [
-
-    `Forecast đạt <b>${
-      plan
-        ? (
-            forecast /
-            plan *
-            100
-          ).toFixed(1)
-        : '0.0'
-    }%</b> kế hoạch.`,
-
-    shortfall > 0
-      ? `Còn thiếu <b>${
-          money(shortfall)
-        }</b> so với kế hoạch.`
-      : `Forecast hiện đã <b>đạt hoặc vượt kế hoạch</b>.`,
-
-    coverage !== null
-      ? `Weighted Pipeline đang bao phủ <b>${
-          coverage.toFixed(1)
-        }x</b> phần thiếu.`
-      : `Không còn Gap Forecast cần Pipeline bù.`,
-
-    `Có <b>${
-      red.length
-    }</b> lát cắt đang cảnh báo Đỏ.`,
-
-    `Có <b>${
-      stale.length
-    }</b> CHKD đứng yên ≥2 tuần, tương ứng <b>${
-      money(staleValue)
-    }</b> Weighted Pipeline.`
-  ];
-
-
-  $('insights').innerHTML =
-    messages
-      .map(
-        message =>
-          `<li>${message}</li>`
-      )
-      .join('');
-}
-
-
-/* =====================================================
-   MANAGEMENT RISK TABLE
-===================================================== */
-
-function renderRiskTable(rows) {
-
-  const sorted =
-    [...rows]
-
-      .sort((a, b) => {
-
-        const riskOrder = {
-          'Đỏ': 1,
-          'Vàng': 2,
-          'Xanh': 3
-        };
-
-        return (
-          (
+          const ra =
             riskOrder[
               a[
                 'Cảnh báo điều hành'
               ]
-            ] || 9
-          ) -
-          (
+            ] || 9;
+
+
+          const rb =
             riskOrder[
               b[
                 'Cảnh báo điều hành'
               ]
-            ] || 9
+            ] || 9;
+
+
+          if (ra !== rb) {
+
+            return ra - rb;
+          }
+
+
+          return (
+            N(
+              a[
+                'Gap Forecast/KH'
+              ]
+            ) -
+            N(
+              b[
+                'Gap Forecast/KH'
+              ]
+            )
+          );
+        }
+      )
+
+      .slice(
+        0,
+        20
+      );
+
+
+  $('riskRows')
+    .innerHTML =
+
+    rows.map(
+      row => {
+
+        const gap =
+          N(
+            row[
+              'Gap Forecast/KH'
+            ]
+          );
+
+
+        const coverage =
+          N(
+            row[
+              'Coverage Gap'
+            ]
+          );
+
+
+        return `
+
+          <tr>
+
+            <td>
+              ${row['Tháng']}
+            </td>
+
+            <td>
+              ${row.SPDV}
+            </td>
+
+            <td>
+              ${row['Địa bàn']}
+            </td>
+
+            <td>
+              ${row['Đơn vị']}
+            </td>
+
+            <td class="${
+              gap >= 0
+                ? 'green'
+                : 'red'
+            }">
+              ${signedMoney(gap)}
+            </td>
+
+            <td>
+              ${money(
+                row[
+                  'Weighted Pipeline'
+                ]
+              )}
+            </td>
+
+            <td>
+              ${
+                coverage >= 999
+                  ? 'Đã đạt KH'
+                  : coverage.toFixed(1) +
+                    'x'
+              }
+            </td>
+
+            <td>
+              ${
+                row[
+                  'Số CHKD'
+                ]
+              }
+            </td>
+
+            <td>
+              ${
+                row[
+                  'CHKD đứng yên ≥2 tuần'
+                ]
+              }
+            </td>
+
+            <td>
+              ${
+                row[
+                  'Cảnh báo điều hành'
+                ]
+              }
+            </td>
+
+          </tr>
+        `;
+      }
+    )
+    .join('');
+}
+
+
+/* ==============================================
+   OPPORTUNITY TABLE
+============================================== */
+
+function renderOpportunityTable() {
+
+  const rows =
+    [...opportunities]
+
+      .sort(
+        (a, b) =>
+
+          N(
+            b[
+              'Weighted Pipeline'
+            ]
+          ) -
+
+          N(
+            a[
+              'Weighted Pipeline'
+            ]
           )
-        );
-      })
+      )
 
-      .slice(0, 20);
+      .slice(
+        0,
+        20
+      );
 
 
-  $('rows').innerHTML =
-    sorted.map(row => {
+  $('opportunityRows')
+    .innerHTML =
 
-      const gap =
-        N(
-          row[
-            'Gap Forecast/KH'
-          ]
-        );
+    rows.map(
+      row => `
 
-      const coverage =
-        N(
-          row[
-            'Coverage Gap'
-          ]
-        );
-
-      return `
         <tr>
 
-          <td>${row['Tháng']}</td>
+          <td>
+            ${row['Mã CHKD']}
+          </td>
 
-          <td>${row.SPDV}</td>
+          <td>
+            ${row['Tên cơ hội']}
+          </td>
 
-          <td>${row['Địa bàn']}</td>
+          <td>
+            ${row.SPDV}
+          </td>
 
-          <td>${row['Đơn vị']}</td>
+          <td>
+            ${row.Owner || ''}
+          </td>
 
-          <td class="${
-            gap < 0
-              ? 'red'
-              : 'green'
-          }">
-            ${money(gap)}
+          <td>
+            ${money(
+              row[
+                'Giá trị cơ hội'
+              ]
+            )}
+          </td>
+
+          <td>
+            ${percent(
+              row[
+                'Xác suất'
+              ]
+            )}
           </td>
 
           <td>
@@ -849,22 +1538,9 @@ function renderRiskTable(rows) {
           </td>
 
           <td>
-            ${
-              coverage >= 999
-                ? 'Đã đạt KH'
-                : coverage.toFixed(1) +
-                  'x'
-            }
-          </td>
-
-          <td>
-            ${row['Số CHKD']}
-          </td>
-
-          <td>
-            ${
+            T${
               row[
-                'CHKD đứng yên ≥2 tuần'
+                'Tháng dự kiến chốt'
               ]
             }
           </td>
@@ -872,154 +1548,116 @@ function renderRiskTable(rows) {
           <td>
             ${
               row[
-                'Cảnh báo điều hành'
+                'Số tuần đứng yên'
               ]
+            }
+          </td>
+
+          <td>
+            ${
+              row[
+                'Next action'
+              ] || ''
             }
           </td>
 
         </tr>
-      `;
-
-    }).join('');
+      `
+    )
+    .join('');
 }
 
 
-/* =====================================================
-   PRIORITY OPPORTUNITIES
-===================================================== */
+/* ==============================================
+   HELPERS
+============================================== */
 
-function renderOpportunityTable(opps) {
+function sum(
+  rows,
+  field
+) {
 
-  const sorted =
-    [...opps]
+  return rows.reduce(
 
-      .sort(
-        (a, b) =>
-          N(
-            b[
-              'Weighted Pipeline'
-            ]
-          ) -
-          N(
-            a[
-              'Weighted Pipeline'
-            ]
-          )
-      )
+    (total, row) =>
 
-      .slice(0, 20);
+      total +
+      N(
+        row[field]
+      ),
 
-
-  $('oppRows').innerHTML =
-    sorted.map(row => `
-
-      <tr>
-
-        <td>
-          ${row['Mã CHKD']}
-        </td>
-
-        <td>
-          ${row['Tên cơ hội']}
-        </td>
-
-        <td>
-          ${row.SPDV}
-        </td>
-
-        <td>
-          ${row.Owner}
-        </td>
-
-        <td>
-          ${money(
-            row[
-              'Giá trị cơ hội'
-            ]
-          )}
-        </td>
-
-        <td>
-          ${(
-            N(
-              row['Xác suất']
-            ) * 100
-          ).toFixed(0)}%
-        </td>
-
-        <td>
-          ${money(
-            row[
-              'Weighted Pipeline'
-            ]
-          )}
-        </td>
-
-        <td>
-          T${
-            row[
-              'Tháng dự kiến chốt'
-            ]
-          }
-        </td>
-
-        <td>
-          ${
-            row[
-              'Số tuần đứng yên'
-            ]
-          }
-        </td>
-
-        <td>
-          ${
-            row[
-              'Next action'
-            ] || ''
-          }
-        </td>
-
-      </tr>
-
-    `).join('');
+    0
+  );
 }
 
 
-/* =====================================================
+function setStatus(
+  text,
+  success
+) {
+
+  const element =
+    $('source');
+
+
+  if (!element) {
+    return;
+  }
+
+
+  element.textContent =
+    text;
+
+
+  element.style.fontWeight =
+    '600';
+
+
+  element.style.color =
+    success
+      ? '#067647'
+      : '#b42318';
+}
+
+
+/* ==============================================
    EVENTS
-===================================================== */
+============================================== */
 
 [
+  'year',
+  'quarter',
   'month',
   'spdv',
   'area',
   'unit'
-].forEach(id => {
+].forEach(
+  id => {
 
-  const element = $(id);
+    const element =
+      $(id);
 
-  if (element) {
-    element.addEventListener(
-      'change',
-      render
-    );
+
+    if (element) {
+
+      element.addEventListener(
+        'change',
+        refreshDashboard
+      );
+    }
   }
-
-});
-
-
-if ($('refresh')) {
-
-  $('refresh')
-    .addEventListener(
-      'click',
-      load
-    );
-}
+);
 
 
-/* =====================================================
-   START APPLICATION
-===================================================== */
+$('refresh')
+  ?.addEventListener(
+    'click',
+    refreshDashboard
+  );
+
+
+/* ==============================================
+   START
+============================================== */
 
 load();
