@@ -674,18 +674,17 @@ function renderExecutive() {
       );
 
 
-  $('coverage')
-    .textContent =
+  const gapRate =
+  N(e.plan) > 0
+    ? N(e.shortfall) / N(e.plan)
+    : 0;
 
-      e.coverage === null ||
-      e.shortfall === 0
-
-        ? 'Đã đạt KH'
-
-        : N(
-            e.coverage
-          ).toFixed(1) +
-          'x';
+$('coverage').textContent =
+  N(e.shortfall) === 0
+    ? 'Đã đạt KH'
+    : gapRate < 0.01
+      ? 'Gần đạt KH'
+      : N(e.coverage).toFixed(1) + 'x';
 
 
   $('pipelineBalance')
@@ -825,15 +824,27 @@ function renderManagementBrief() {
     );
 
 
-    messages.push(
+    const gapRate =
+  N(e.plan) > 0
+    ? N(e.shortfall) / N(e.plan)
+    : 0;
 
-      `Weighted Pipeline bao phủ <b>${
-        N(
-          e.coverage
-        ).toFixed(1)
-      }x</b> phần thiếu.`
-    );
+if (gapRate < 0.01) {
 
+  messages.push(
+    `Forecast đã <b>gần đạt kế hoạch</b>, chỉ còn thiếu <b>${
+      money(e.shortfall)
+    }</b> (${percent(gapRate)} KH).`
+  );
+
+} else {
+
+  messages.push(
+    `Weighted Pipeline bao phủ <b>${
+      N(e.coverage).toFixed(1)
+    }x</b> phần thiếu.`
+  );
+}
 
     if (
       N(
