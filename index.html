@@ -1,9 +1,519 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SXKD + CHKD Command Center</title><link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/chart.js"></script></head><body>
-<header><div><h1>SXKD + CHKD Command Center</h1><p>Từ kế hoạch doanh thu đến pipeline và hành động bán hàng</p></div><button id="refresh">Làm mới</button></header><main>
-<section class="filters"><select id="month"><option value="">Cả năm</option></select><select id="spdv"><option value="">Tất cả SPDV</option></select><select id="area"><option value="">Tất cả địa bàn</option></select><select id="unit"><option value="">Tất cả đơn vị</option></select></section>
-<section class="cards"><article><span>Kế hoạch</span><b id="plan">—</b></article><article><span>Thực hiện</span><b id="actual">—</b><small id="rate"></small></article><article><span>Forecast SXKD</span><b id="forecast">—</b></article><article><span>Gap Forecast/KH</span><b id="gap">—</b></article><article><span>Weighted Pipeline CHKD</span><b id="weighted">—</b></article><article><span>Coverage phần thiếu</span><b id="coverage">—</b></article></section>
-<section class="panel insight"><h2>Insight điều hành hợp nhất</h2><ul id="insights"></ul></section>
-<section class="grid"><article class="panel"><h2>KH – TH – Forecast theo tháng</h2><canvas id="trend"></canvas></article><article class="panel"><h2>Gap và Weighted Pipeline theo SPDV</h2><canvas id="coverageChart"></canvas></article><article class="panel"><h2>Cơ cấu Pipeline CHKD theo giai đoạn</h2><canvas id="stage"></canvas></article><article class="panel"><h2>Pipeline đứng yên theo Owner</h2><canvas id="owner"></canvas></article></section>
-<section class="panel"><h2>Top điểm cần Ban điều hành can thiệp</h2><div class="tablewrap"><table><thead><tr><th>Tháng</th><th>SPDV</th><th>Địa bàn</th><th>Đơn vị</th><th>Gap Forecast</th><th>Weighted Pipeline</th><th>Coverage</th><th>Số CHKD</th><th>Đứng yên</th><th>Cảnh báo</th></tr></thead><tbody id="rows"></tbody></table></div></section>
-<section class="panel"><h2>CHKD ưu tiên để bù Gap</h2><div class="tablewrap"><table><thead><tr><th>Mã</th><th>Cơ hội</th><th>SPDV</th><th>Owner</th><th>Giá trị</th><th>Xác suất</th><th>Weighted</th><th>Tháng chốt</th><th>Đứng yên</th><th>Next action</th></tr></thead><tbody id="oppRows"></tbody></table></div></section>
-<p class="note" id="source"></p></main><script src="config.js"></script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
+  <title>SXKD Executive Command Center</title>
+
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+
+<body>
+
+<header>
+
+  <div>
+
+    <h1>
+      SXKD + CHKD Executive Command Center
+    </h1>
+
+    <p>
+      Kế hoạch • Thực hiện • Forecast • Pipeline • Điều hành
+    </p>
+
+  </div>
+
+  <button id="refresh">
+    Làm mới
+  </button>
+
+</header>
+
+
+<main>
+
+
+<!-- ==========================================
+     FILTERS
+=========================================== -->
+
+<section class="filters">
+
+  <select id="year">
+    <option value="">
+      Tất cả năm
+    </option>
+  </select>
+
+
+  <select id="quarter">
+    <option value="">
+      Tất cả quý
+    </option>
+
+    <option value="Q1">Q1</option>
+    <option value="Q2">Q2</option>
+    <option value="Q3">Q3</option>
+    <option value="Q4">Q4</option>
+  </select>
+
+
+  <select id="month">
+    <option value="">
+      Tất cả tháng
+    </option>
+  </select>
+
+
+  <select id="spdv">
+    <option value="">
+      Tất cả SPDV
+    </option>
+  </select>
+
+
+  <select id="area">
+    <option value="">
+      Tất cả địa bàn
+    </option>
+  </select>
+
+
+  <select id="unit">
+    <option value="">
+      Tất cả đơn vị
+    </option>
+  </select>
+
+</section>
+
+
+<!-- ==========================================
+     REPORT CONTEXT
+=========================================== -->
+
+<section class="panel">
+
+  <div id="reportContext">
+    Đang tải kỳ báo cáo...
+  </div>
+
+</section>
+
+
+<!-- ==========================================
+     YTD KPI
+=========================================== -->
+
+<h2 class="section-title">
+  Kết quả thực hiện YTD
+</h2>
+
+
+<section class="cards">
+
+  <article>
+
+    <span>
+      KH YTD
+    </span>
+
+    <b id="planYTD">
+      —
+    </b>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      TH YTD
+    </span>
+
+    <b id="actualYTD">
+      —
+    </b>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      % HT KH YTD
+    </span>
+
+    <b id="achievementYTD">
+      —
+    </b>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      YoY YTD
+    </span>
+
+    <b id="yoyYTD">
+      —
+    </b>
+
+  </article>
+
+</section>
+
+
+<!-- ==========================================
+     FULL YEAR / FORECAST
+=========================================== -->
+
+<h2 class="section-title">
+  Dự báo hoàn thành kế hoạch
+</h2>
+
+
+<section class="cards">
+
+  <article>
+
+    <span>
+      Kế hoạch
+    </span>
+
+    <b id="plan">
+      —
+    </b>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      Forecast
+    </span>
+
+    <b id="forecast">
+      —
+    </b>
+
+    <small id="forecastRate">
+    </small>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      Gap Forecast/KH
+    </span>
+
+    <b id="forecastGap">
+      —
+    </b>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      Phần thiếu cần bù
+    </span>
+
+    <b id="shortfall">
+      —
+    </b>
+
+  </article>
+
+</section>
+
+
+<!-- ==========================================
+     PIPELINE
+=========================================== -->
+
+<h2 class="section-title">
+  Khả năng bù Gap bằng CHKD
+</h2>
+
+
+<section class="cards">
+
+  <article>
+
+    <span>
+      Pipeline CHKD
+    </span>
+
+    <b id="pipeline">
+      —
+    </b>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      Weighted Pipeline
+    </span>
+
+    <b id="weightedPipeline">
+      —
+    </b>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      Coverage Gap
+    </span>
+
+    <b id="coverage">
+      —
+    </b>
+
+  </article>
+
+
+  <article>
+
+    <span>
+      Pipeline dư / thiếu
+    </span>
+
+    <b id="pipelineBalance">
+      —
+    </b>
+
+  </article>
+
+</section>
+
+
+<!-- ==========================================
+     MANAGEMENT BRIEF
+=========================================== -->
+
+<section class="panel insight">
+
+  <h2>
+    Management Brief
+  </h2>
+
+  <ul id="managementBrief">
+  </ul>
+
+</section>
+
+
+<!-- ==========================================
+     CHARTS
+=========================================== -->
+
+<section class="grid">
+
+
+  <article class="panel">
+
+    <h2>
+      KH – TH – Forecast theo tháng
+    </h2>
+
+    <div class="chart-box">
+      <canvas id="trend">
+      </canvas>
+    </div>
+
+  </article>
+
+
+  <article class="panel">
+
+    <h2>
+      Gap và Weighted Pipeline theo SPDV
+    </h2>
+
+    <div class="chart-box">
+      <canvas id="coverageChart">
+      </canvas>
+    </div>
+
+  </article>
+
+
+  <article class="panel">
+
+    <h2>
+      Weighted Pipeline theo giai đoạn
+    </h2>
+
+    <div class="chart-box">
+      <canvas id="stage">
+      </canvas>
+    </div>
+
+  </article>
+
+
+  <article class="panel">
+
+    <h2>
+      Pipeline đứng yên theo Owner
+    </h2>
+
+    <div class="chart-box">
+      <canvas id="owner">
+      </canvas>
+    </div>
+
+  </article>
+
+</section>
+
+
+<!-- ==========================================
+     MANAGEMENT RISK
+=========================================== -->
+
+<section class="panel">
+
+  <h2>
+    Top điểm cần Ban điều hành can thiệp
+  </h2>
+
+  <div class="tablewrap">
+
+    <table>
+
+      <thead>
+
+        <tr>
+
+          <th>Tháng</th>
+
+          <th>SPDV</th>
+
+          <th>Địa bàn</th>
+
+          <th>Đơn vị</th>
+
+          <th>Forecast Gap</th>
+
+          <th>Weighted Pipeline</th>
+
+          <th>Coverage</th>
+
+          <th>CHKD</th>
+
+          <th>Đứng yên</th>
+
+          <th>Cảnh báo</th>
+
+        </tr>
+
+      </thead>
+
+
+      <tbody id="riskRows">
+      </tbody>
+
+    </table>
+
+  </div>
+
+</section>
+
+
+<!-- ==========================================
+     PRIORITY OPPORTUNITIES
+=========================================== -->
+
+<section class="panel">
+
+  <h2>
+    CHKD ưu tiên
+  </h2>
+
+  <div class="tablewrap">
+
+    <table>
+
+      <thead>
+
+        <tr>
+
+          <th>Mã</th>
+
+          <th>Cơ hội</th>
+
+          <th>SPDV</th>
+
+          <th>Owner</th>
+
+          <th>Giá trị</th>
+
+          <th>Xác suất</th>
+
+          <th>Weighted</th>
+
+          <th>Dự kiến chốt</th>
+
+          <th>Đứng yên</th>
+
+          <th>Next action</th>
+
+        </tr>
+
+      </thead>
+
+
+      <tbody id="opportunityRows">
+      </tbody>
+
+    </table>
+
+  </div>
+
+</section>
+
+
+<p
+  class="note"
+  id="source"
+>
+  Đang kết nối...
+</p>
+
+
+</main>
+
+
+<script src="config.js"></script>
+
+<script src="app.js"></script>
+
+
+</body>
+</html>
