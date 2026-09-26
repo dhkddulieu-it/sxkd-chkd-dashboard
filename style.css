@@ -59,6 +59,62 @@ canvas{max-height:330px}
 .cards article {
   min-height: 105px;
 }
+.management-cards article {
+  min-height: 110px;
+}
+
+.p1 {
+  color: #b42318 !important;
+}
+
+.p2 {
+  color: #b54708 !important;
+}
+
+.p3 {
+  color: #b54708 !important;
+}
+
+.p4,
+.ok {
+  color: #067647 !important;
+}
+
+.priority-badge {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.panel-heading h2 {
+  margin-bottom: 4px;
+}
+
+.subtext {
+  margin-top: 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+#managementRows td {
+  vertical-align: top;
+}
+
+#managementRows td:nth-child(12),
+#managementRows td:nth-child(13) {
+  min-width: 220px;
+  white-space: normal;
+  line-height: 1.4;
+}
 
 .cards b {
   word-break: break-word;
